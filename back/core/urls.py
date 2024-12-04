@@ -17,10 +17,14 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path, include
 from drf_spectacular.views import SpectacularSwaggerView, SpectacularAPIView
+from notes.views import notes_list, delete_note
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', include('notes.urls')),
+
+    path('notes/', notes_list, name='notes_list'),
+    path('notes/delete/<int:note_id>/', delete_note, name='delete_note'),
 
     # docs
     path('schema/', SpectacularAPIView.as_view(), name='schema'),
