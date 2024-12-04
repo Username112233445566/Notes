@@ -1,58 +1,39 @@
-# views.py
-from rest_framework.views import APIView
-from rest_framework.response import Response
-from rest_framework import status
+from rest_framework import viewsets, filters
+from django_filters.rest_framework import DjangoFilterBackend
 from .models import Note
 from .serializers import NoteSerializer
-from django.db.models import Q
+from django.shortcuts import render, redirect, get_object_or_404
+from .models import Note
 
-class NoteListCreateAPIView(APIView):
-    def get(self, request):
-        notes = Note.objects.all()
-        sort_by = request.query_params.get('sort_by', 'created_at')
-        filter_query = request.query_params.get('filter', None)
+class NoteViewSet(viewsets.ModelViewSet):
+    queryset = Note.objects.all().order_by('-created_at')
+    serializer_class = NoteSerializer
 
-        if filter_query:
-            notes = notes.filter(Q(title__icontains=filter_query) | Q(content__icontains=filter_query))
-        notes = notes.order_by(sort_by)
-        
-        serializer = NoteSerializer(notes, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+    filter_backends = [DjangoFilterBackend, filters.OrderingFilter]
+    filterset_fields = ['created_at']
+    ordering_fields = ['created_at']
 
-    def post(self, request):
-        serializer = NoteSerializer(data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+def notes_list(request):
+    if request.method == 'POST':
+        note_id = request.POST.get('id')
+        title = request.POST.get('title')
+        content = request.POST.get('content')
 
-class NoteDetailAPIView(APIView):
-    def get_object(self, pk):
-        try:
-            return Note.objects.get(pk=pk)
-        except Note.DoesNotExist:
-            return None
+        if note_id:
+            note = get_object_or_404(Note, id=note_id)
+            note.title = title
+            note.content = content
+            note.save()
+        else:
+            Note.objects.create(title=title, content=content)
 
-    def get(self, request, pk):
-        note = self.get_object(pk)
-        if note is None:
-            return Response({"error": "Note not found"}, status=status.HTTP_404_NOT_FOUND)
-        serializer = NoteSerializer(note)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        return redirect('notes_list')
 
-    def put(self, request, pk):
-        note = self.get_object(pk)
-        if note is None:
-            return Response({"error": "Note not found"}, status=status.HTTP_404_NOT_FOUND)
-        serializer = NoteSerializer(note, data=request.data)
-        if serializer.is_valid():
-            serializer.save()
-            return Response(serializer.data, status=status.HTTP_200_OK)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    notes = Note.objects.all().order_by('-created_at')
+    return render(request, 'notes_list.html', {'notes': notes})
 
-    def delete(self, request, pk):
-        note = self.get_object(pk)
-        if note is None:
-            return Response({"error": "Note not found"}, status=status.HTTP_404_NOT_FOUND)
-        note.delete()
-        return Response({"message": "Note deleted successfully"}, status=status.HTTP_204_NO_CONTENT)
+
+def delete_note(request, note_id):
+    note = get_object_or_404(Note, id=note_id)
+    note.delete()
+    return redirect('notes_list')
